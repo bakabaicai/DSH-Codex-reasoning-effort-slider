@@ -2,6 +2,7 @@ window.__ModuleLoader__.load({
   id: '@local/dsh-codex-reasoning-effort-slider',
   factory(require) {
     const React = require('react');
+    const ReactDOM = require('react-dom');
     const h = React.createElement;
     const { useState, useEffect, useLayoutEffect, useRef, useSyncExternalStore } = React;
     const NS = 'dsh-codex-reasoning-effort-slider';
@@ -21,8 +22,8 @@ window.__ModuleLoader__.load({
     const order = ['off', 'low', 'high', 'max'];
     const styles = `
       .dsh-codex-reasoning-effort-slider-root{position:relative;display:inline-flex;font-family:var(--dsw-font-family);font-size:14px;letter-spacing:0}
-      .dsh-codex-reasoning-effort-slider-root *{box-sizing:border-box;corner-shape:round}
-      .dsh-codex-reasoning-effort-slider-root button{font:inherit;cursor:pointer;border:0}
+      .dsh-codex-reasoning-effort-slider-root *,.dsh-codex-reasoning-effort-slider-popup *{box-sizing:border-box;corner-shape:round}
+      .dsh-codex-reasoning-effort-slider-root button,.dsh-codex-reasoning-effort-slider-popup button{font:inherit;cursor:pointer;border:0}
       .dsh-codex-reasoning-effort-slider-trigger{display:inline-flex;align-items:center;gap:5px;max-width:250px;height:28px;padding:0 7px;background:transparent;color:var(--dsw-alias-label-caption);border-radius:8px;font-size:13px!important}
       .dsh-codex-reasoning-effort-slider-trigger:hover{background:var(--dsw-alias-interactive-bg-hover)}
       .dsh-codex-reasoning-effort-slider-trigger>.dsh-codex-reasoning-effort-slider-icon{transition:transform .18s ease}
@@ -32,9 +33,9 @@ window.__ModuleLoader__.load({
       .dsh-codex-reasoning-effort-slider-trigger.ultra .dsh-codex-reasoning-effort-slider-trigger-effort{color:#9c4ce3}
       .dsh-codex-reasoning-effort-slider-trigger-bolt{width:14px;height:16px;flex:none;fill:currentColor;stroke:currentColor;stroke-width:.7;stroke-linejoin:round;color:var(--dsw-alias-label-primary)}
       .dsh-codex-reasoning-effort-slider-compact{display:var(--dsh-composer-model-icon-display,none)}
-      .dsh-codex-reasoning-effort-slider-root button:disabled{cursor:default;opacity:.5}
-      .dsh-codex-reasoning-effort-slider-root button:focus-visible,.dsh-codex-reasoning-effort-slider-rail:focus-visible{outline:2px solid var(--dsw-focus-ring-color);outline-offset:2px}
-      .dsh-codex-reasoning-effort-slider-popup{position:fixed;bottom:var(--dsh-codex-reasoning-effort-slider-bottom,40px);left:var(--dsh-codex-reasoning-effort-slider-left,12px);width:272px;max-width:calc(100vw - 24px);height:var(--dsh-codex-reasoning-effort-slider-height,104px);max-height:calc(100vh - var(--dsh-codex-reasoning-effort-slider-bottom,40px) - 12px);padding:0;background:var(--dsw-specific-menu,var(--dsw-alias-bg-layer-2));border-radius:14px;box-shadow:var(--dsw-elevation-panel);backdrop-filter:var(--dsw-menu-backdrop-filter);z-index:120;transform-origin:bottom left;transition:opacity .18s ease,transform .18s ease,height .2s cubic-bezier(.2,.8,.2,1),visibility 0s}
+      .dsh-codex-reasoning-effort-slider-root button:disabled,.dsh-codex-reasoning-effort-slider-popup button:disabled{cursor:default;opacity:.5}
+      .dsh-codex-reasoning-effort-slider-root button:focus-visible,.dsh-codex-reasoning-effort-slider-popup button:focus-visible,.dsh-codex-reasoning-effort-slider-rail:focus-visible{outline:2px solid var(--dsw-focus-ring-color);outline-offset:2px}
+      .dsh-codex-reasoning-effort-slider-popup{font-family:var(--dsw-font-family);font-size:14px;letter-spacing:0;position:fixed;bottom:var(--dsh-codex-reasoning-effort-slider-bottom,40px);left:var(--dsh-codex-reasoning-effort-slider-left,12px);width:272px;max-width:calc(100vw - 24px);height:var(--dsh-codex-reasoning-effort-slider-height,104px);max-height:calc(100vh - var(--dsh-codex-reasoning-effort-slider-bottom,40px) - 12px);padding:0;background:var(--dsw-specific-menu,var(--dsw-alias-bg-layer-2));border-radius:14px;box-shadow:var(--dsw-elevation-panel);backdrop-filter:var(--dsw-menu-backdrop-filter);z-index:1100;transform-origin:bottom left;transition:opacity .18s ease,transform .18s ease,height .2s cubic-bezier(.2,.8,.2,1),visibility 0s}
       .dsh-codex-reasoning-effort-slider-popup.closed{opacity:0;pointer-events:none;visibility:hidden;transform:translateY(5px) scale(.98);transition-delay:0s,0s,0s,.18s}
       .dsh-codex-reasoning-effort-slider-pane{position:absolute;left:0;right:0;bottom:0;opacity:1;transform:translateY(0);transition:opacity .14s ease,transform .2s ease,visibility 0s}
       .dsh-codex-reasoning-effort-slider-pane.hidden{opacity:0;pointer-events:none;visibility:hidden;transform:translateY(5px);transition-delay:0s,0s,.14s}
@@ -219,7 +220,7 @@ window.__ModuleLoader__.load({
         if (!open) return;
         let layoutFrame = 0;
         function outside(event) {
-          if (!rootRef.current?.contains(event.target)) close();
+          if (!rootRef.current?.contains(event.target) && !popupRef.current?.contains(event.target)) close();
         }
         function escape(event) {
           if (event.key !== 'Escape') return;
@@ -234,8 +235,10 @@ window.__ModuleLoader__.load({
           if (!trigger || !popup) return;
           const width = Math.min(272, innerWidth - 24);
           const left = Math.max(12, Math.min((trigger.left + trigger.right - width) / 2, innerWidth - width - 12));
-          rootRef.current.style.setProperty('--dsh-codex-reasoning-effort-slider-left', `${left}px`);
-          rootRef.current.style.setProperty('--dsh-codex-reasoning-effort-slider-bottom', `${Math.max(12, innerHeight - trigger.top + 8)}px`);
+          // 弹层已 portal 到 body，定位变量必须写在弹层自身（跨树无法从 root 继承）
+          const anchor = popupRef.current ?? rootRef.current;
+          anchor.style.setProperty('--dsh-codex-reasoning-effort-slider-left', `${left}px`);
+          anchor.style.setProperty('--dsh-codex-reasoning-effort-slider-bottom', `${Math.max(12, innerHeight - trigger.top + 8)}px`);
         }
         function resized() {
           cancelAnimationFrame(layoutFrame);
@@ -405,21 +408,10 @@ window.__ModuleLoader__.load({
           }, h('span', { className: 'dsh-codex-reasoning-effort-slider-option-name', title: option.name }, option.name),
           selection?.provider === provider.id && selection?.model === option.id ? icon('check', true) : null)))),
         !state.groups.length ? h('div', { className: 'dsh-codex-reasoning-effort-slider-status' }, state.status === 'loading' ? t('loading') : t('empty')) : null);
-      return h('div', { className: 'dsh-codex-reasoning-effort-slider-root', ref: rootRef, 'data-dsh-codex-reasoning-effort-slider-session': true },
-        h('style', null, styles),
-        h('button', { className: `dsh-codex-reasoning-effort-slider-trigger${savedEffort === 'max' ? ' ultra' : ''}`, ref: triggerRef, disabled,
-          'aria-label': `${modelName} ${triggerLabel}`, 'aria-expanded': open, 'aria-haspopup': 'dialog', 'aria-busy': busy,
-          onClick: () => {
-            if (open) close();
-            else { setPane(model ? 'effort' : 'models'); setOpen(true); load(); }
-          }
-        }, fast ? h('svg', { className: 'dsh-codex-reasoning-effort-slider-trigger-bolt', viewBox: '0 0 24 24', 'aria-hidden': true },
-          h('path', { d: 'M14.4 2Q16 .2 15.8 2.5L15.1 8.5H20.5Q22 8.5 21 9.8L10.7 21.7Q9 23.4 9.2 21.2L10 14.2H4.2Q2.6 14.2 3.6 12.9L14.4 2Z' })) : null,
-        h('span', { className: 'dsh-codex-reasoning-effort-slider-compact' }, icon('model')),
-        h('span', { className: 'dsh-codex-reasoning-effort-slider-caption' }, modelName,
-          triggerLabel ? h('span', { className: 'dsh-codex-reasoning-effort-slider-trigger-effort' }, ` ${triggerLabel}`) : null), icon('down', true)),
-        h('section', { className: classes, ref: popupRef, role: 'dialog', 'aria-label': pane === 'models' ? t('model') : t('effort'),
-          'aria-hidden': !open, inert: !open ? '' : undefined, style: { '--dsh-codex-reasoning-effort-slider-height': `${pane === 'models' ? menuHeight : 104}px` } },
+      // 弹层必须 portal 到 body：聊天面板带 backdrop-filter 时会给 position:fixed 的后代
+      // 重新创建包含块，弹层会按面板坐标漂移。
+      const popupNode = h('section', { className: classes, ref: popupRef, role: 'dialog', 'aria-label': pane === 'models' ? t('model') : t('effort'),
+        'aria-hidden': !open, inert: !open ? '' : undefined, style: { '--dsh-codex-reasoning-effort-slider-height': `${pane === 'models' ? menuHeight : 104}px` } },
           modelsView,
           h('div', { className: `dsh-codex-reasoning-effort-slider-pane dsh-codex-reasoning-effort-slider-main${pane !== 'effort' ? ' hidden' : ''}`, inert: pane !== 'effort' ? '' : undefined },
             h('button', { className: `dsh-codex-reasoning-effort-slider-tool dsh-codex-reasoning-effort-slider-fast${fast ? ' active' : ''}`, 'aria-label': t('fast'), 'aria-pressed': fast, onClick: () => setFast(!fast) },
@@ -452,7 +444,21 @@ window.__ModuleLoader__.load({
           status ? h('div', { className: 'dsh-codex-reasoning-effort-slider-status dsh-codex-reasoning-effort-slider-error', role: 'alert' },
             h('span', { className: 'dsh-codex-reasoning-effort-slider-error-text', title: status }, status),
             h('button', { className: 'dsh-codex-reasoning-effort-slider-menu-back', 'aria-label': t('retry'), title: t('retry'),
-              onClick: () => { setError(''); load(); } }, icon('reset', true))) : null));
+              onClick: () => { setError(''); load(); } }, icon('reset', true))) : null);
+      return h('div', { className: 'dsh-codex-reasoning-effort-slider-root', ref: rootRef, 'data-dsh-codex-reasoning-effort-slider-session': true },
+        h('style', null, styles),
+        h('button', { className: `dsh-codex-reasoning-effort-slider-trigger${savedEffort === 'max' ? ' ultra' : ''}`, ref: triggerRef, disabled,
+          'aria-label': `${modelName} ${triggerLabel}`, 'aria-expanded': open, 'aria-haspopup': 'dialog', 'aria-busy': busy,
+          onClick: () => {
+            if (open) close();
+            else { setPane(model ? 'effort' : 'models'); setOpen(true); load(); }
+          }
+        }, fast ? h('svg', { className: 'dsh-codex-reasoning-effort-slider-trigger-bolt', viewBox: '0 0 24 24', 'aria-hidden': true },
+          h('path', { d: 'M14.4 2Q16 .2 15.8 2.5L15.1 8.5H20.5Q22 8.5 21 9.8L10.7 21.7Q9 23.4 9.2 21.2L10 14.2H4.2Q2.6 14.2 3.6 12.9L14.4 2Z' })) : null,
+        h('span', { className: 'dsh-codex-reasoning-effort-slider-compact' }, icon('model')),
+        h('span', { className: 'dsh-codex-reasoning-effort-slider-caption' }, modelName,
+          triggerLabel ? h('span', { className: 'dsh-codex-reasoning-effort-slider-trigger-effort' }, ` ${triggerLabel}`) : null), icon('down', true)),
+        typeof document !== 'undefined' ? ReactDOM.createPortal(popupNode, document.body) : popupNode);
     }
     return {
       inject: ['slots', 'modelDirectories', 'sessions', 'locale', 'remote', 'remote.session'],
