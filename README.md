@@ -23,7 +23,7 @@ B 站视频演示：。
 
 ## 安装方法
 
-仅在Windows 11上的DeepSeek Harness Desktop **0.2.0-rc.2**测试通过，其他设备有待测试。
+支持 DeepSeek Harness Desktop **0.2.0-rc.2 及以上版本**，仅在 Windows 11 + 0.2.0-rc.2 上实测通过，其他设备与更高版本有待测试。
 
 通过 Harness 官方的插件管理页面安装，无需命令行：
 

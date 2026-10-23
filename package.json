@@ -15,7 +15,12 @@
   },
   "files": ["index.js", "client.js", "cordis.patch.yml", "icon.svg", "locale", "README.md", "LICENSE"],
   "peerDependencies": {
-    "@deepseek-ai/dsh": "0.2.0-rc.2"
+    "@deepseek-ai/dsh": ">=0.2.0-rc.2"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh": {
+      "optional": true
+    }
   },
   "dsh": {
     "bundle": { "patch": "./cordis.patch.yml" },
