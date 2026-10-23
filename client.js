@@ -6,6 +6,8 @@ window.__ModuleLoader__.load({
     const h = React.createElement;
     const { useState, useEffect, useLayoutEffect, useRef, useSyncExternalStore } = React;
     const NS = 'dsh-codex-reasoning-effort-slider';
+    // apply(ctx) 的 ctx 不会进入组件作用域，宿主服务通过这个模块级引用桥接。
+    const sessionsRef = { current: undefined };
     const zh = {
       choose: '选择模型', effort: '思考等级', fast: '1.5倍速', usage: '用量更多', visual: '(无实际作用)',
       reset: '重置为默认', warning: '更快消耗使用额度', model: '切换模型', back: '返回',
@@ -64,8 +66,14 @@ window.__ModuleLoader__.load({
       @keyframes dsh-codex-reasoning-effort-slider-sweep{from{background-position:100% 0}to{background-position:0% 0}}
       .dsh-codex-reasoning-effort-slider-rail{position:absolute;left:12px;right:12px;top:65px;height:26px;border-radius:16px;background:var(--dsw-alias-border-l2);touch-action:none;cursor:grab}
       .dsh-codex-reasoning-effort-slider-rail.dragging{cursor:grabbing}
-      .dsh-codex-reasoning-effort-slider-fill,.dsh-codex-reasoning-effort-slider-sparks{position:absolute;inset:0 auto 0 0;width:calc((100% - 30px)*var(--dsh-codex-reasoning-effort-slider-pos,0) + 15px);border-radius:16px;overflow:hidden;pointer-events:none;transition:width .18s cubic-bezier(.2,.8,.2,1)}
+      /* 填充色块只保留左端圆角，右端直角：一直伸到手柄正下方，不与手柄拼出两个圆角接缝 */
+      .dsh-codex-reasoning-effort-slider-fill,.dsh-codex-reasoning-effort-slider-sparks{position:absolute;inset:0 auto 0 0;width:calc((100% - 30px)*var(--dsh-codex-reasoning-effort-slider-pos,0) + 15px);border-radius:16px 0 0 16px;overflow:hidden;pointer-events:none;transition:width .18s cubic-bezier(.2,.8,.2,1)}
       .dsh-codex-reasoning-effort-slider-fill{background:#3988f6;overflow:hidden}
+      /* 手柄宽度 30，15px 刚好压到第一格；Off 档再压掉这半格，左端不留蓝色残影 */
+      .dsh-codex-reasoning-effort-slider-rail[data-effort="off"] .dsh-codex-reasoning-effort-slider-fill{width:0;opacity:0}
+      /* 运行中（runActive）思考档位被钉在本次回合的请求上，此时立刻提交会让已保存的历史与请求档位错配 */
+      .dsh-codex-reasoning-effort-slider-rail[data-locked]{cursor:not-allowed}
+      .dsh-codex-reasoning-effort-slider-popup.locked .dsh-codex-reasoning-effort-slider-knob{cursor:not-allowed}
       .dsh-codex-reasoning-effort-slider-fill:after{content:"";position:absolute;inset:-12px -24px;border-radius:28px;background:linear-gradient(95deg,#3065de 0%,#7757ee 32%,#b052f1 53%,#7d42e7 76%,#5631d0 100%);filter:blur(5px);opacity:0;mask-image:linear-gradient(90deg,transparent 0%,#000 22%,#000 78%,transparent 100%);-webkit-mask-image:linear-gradient(90deg,transparent 0%,#000 22%,#000 78%,transparent 100%);transform:translateX(42%);transform-origin:right center;transition:transform 1.8s cubic-bezier(.16,1,.3,1),opacity 1.25s ease,filter 1.8s ease}
       .dsh-codex-reasoning-effort-slider-popup.ultra .dsh-codex-reasoning-effort-slider-fill:after{opacity:.9;transform:translateX(0)}
       .dsh-codex-reasoning-effort-slider-popup.ultra .dsh-codex-reasoning-effort-slider-fill:before{content:"";position:absolute;inset:-10px -40px;background:linear-gradient(100deg,transparent 18%,#ffffff08 35%,#ffffff30 48%,#ffffff06 66%,transparent 84%);animation:dsh-codex-reasoning-effort-slider-shimmer 4.5s ease-in-out infinite alternate;z-index:1}
@@ -115,7 +123,7 @@ window.__ModuleLoader__.load({
       return h('svg', { className: `dsh-codex-reasoning-effort-slider-icon${small ? ' dsh-codex-reasoning-effort-slider-small' : ''}`, viewBox: '0 0 24 24', 'aria-hidden': true },
         h('path', { d: paths[name] || paths.model }));
     }
-    function Selector({ directory, load, select, available, locked, t }) {
+    function Selector({ directory, load, select, available, locked, sessionId, t }) {
       const state = useSyncExternalStore(fn => directory.subscribe(fn), () => directory.getSnapshot());
       const [open, setOpen] = useState(false);
       const [present, setPresent] = useState(false);
@@ -131,6 +139,8 @@ window.__ModuleLoader__.load({
       const canvasRef = useRef(null), burstRef = useRef(null), triggerRef = useRef(null);
       const previewRef = useRef(null), dragRef = useRef(false), dragPointerRef = useRef(null), mountedRef = useRef(true);
       const busyRef = useRef(false);
+      const lockedRef = useRef(false);
+      const pendingRef = useRef(null);
       const timersRef = useRef([]);
       const latest = useRef({});
       const selection = state.pending || state.current;
@@ -144,9 +154,30 @@ window.__ModuleLoader__.load({
       const fraction = efforts.length > 1 ? index / (efforts.length - 1) : 0;
       const ultra = displayed === 'max';
       const modelName = model?.name || selection?.model || t('choose');
-      const disabled = Boolean(locked || !available);
+      // 回合进行中宿主会把 reasoningEffort 钉在本次 prompt 上；这时提交新档位会让已保存的
+      // thinking 块与随后请求的档位不匹配，API 会拒掉整段历史（content[].thinking 必须原样回传）。
+      // 注意：ModelDirectory 的快照里没有运行状态字段，必须向 sessions 服务实时查询。
+      const running = Boolean(locked || state.pending);
+      const disabled = Boolean(locked || !available || running);
       const motion = useRef({ speed: 0, from: 0, target: 0, changedAt: 0, travel: 0, burst: 0 });
-      latest.current = { open: present, fast, ultra, pane };
+      latest.current = { open: present, fast, ultra, pane, disabled };
+
+      // 运行中被挂起的档位：等回合结束、滑块重新可用时再补提交，而不是直接丢掉用户的意图。
+      useEffect(() => {
+        if (disabled || !pendingRef.current) return;
+        let cancelled = false;
+        const timer = setInterval(async () => {
+          if (cancelled || busyRef.current) return;
+          const busy = await sessionBusy();
+          if (cancelled || busy || !pendingRef.current) return;
+          const next = pendingRef.current;
+          pendingRef.current = null;
+          clearInterval(timer);
+          lockedRef.current = true;
+          chooseEffort(next);
+        }, 1200);
+        return () => { cancelled = true; clearInterval(timer); };
+      }, [disabled]);
 
       useEffect(() => {
         if (available) load();
@@ -185,15 +216,37 @@ window.__ModuleLoader__.load({
           setMessage(false);
         }
       }
+      // 向 sessions 服务实时询问该会话是否有进行中的回合。
+      // ctx 只存在于 apply(ctx) 作用域，组件内拿不到，因此由模块级 sessionsRef 注入。
+      async function sessionBusy() {
+        const probe = sessionsRef.current;
+        const key = sessionId;
+        if (!probe || key === undefined) return false;
+        try {
+          if (typeof probe.turnOf === 'function') return Boolean(probe.turnOf(key));
+          if (typeof probe.state === 'function') return Boolean(probe.state(key)?.turn);
+          if (typeof probe.get === 'function') return Boolean(probe.get(key)?.turn);
+          if (typeof probe.isRunning === 'function') return Boolean(probe.isRunning(key));
+          if (typeof probe.running === 'function') return Boolean(probe.running(key));
+        } catch { return false; }
+        return false;
+      }
       async function commit(next) {
         if (disabled || busyRef.current || !next) return;
         busyRef.current = true;
         setBusy(true);
         setError('');
         try {
+          // 二次确认：走到这里才发现回合已经开始，就把提交交还给挂起队列。
+          if (await sessionBusy()) {
+            pendingRef.current = next.reasoningEffort ?? null;
+            return;
+          }
           const result = await select(next);
           if (result && !result.ok) throw new Error(result.error?.message || t('failed'));
           if (result === undefined) throw new Error(t('unavailable'));
+          // 真正落盘成功，清掉挂起意图
+          if (pendingRef.current === next.reasoningEffort) pendingRef.current = null;
         } catch (cause) {
           if (mountedRef.current) setError(cause.message || t('failed'));
         } finally {
@@ -206,10 +259,19 @@ window.__ModuleLoader__.load({
         }
       }
       function chooseEffort(id) {
-        if (!selection || disabled || busyRef.current || !efforts.some(e => e.id === id)) return;
+        if (!selection || busyRef.current || !efforts.some(e => e.id === id)) return;
+        // 运行中不落盘：先记住用户的意图，回合结束后由轮询 effect 补提交。
+        // 否则宿主把旧档位的 thinking 块写进历史、新档位发下一次请求，API 直接 400。
         showEffort(id);
-        if (id !== savedEffort) void commit({ ...selection, reasoningEffort: id });
-        else { previewRef.current = null; setPreview(null); }
+        if (id === savedEffort) {
+          pendingRef.current = null;
+          previewRef.current = null;
+          setPreview(null);
+          return;
+        }
+        pendingRef.current = id;
+        // commit() 内部会再向 sessions 确认一次；这里不提前拦截，避免 UI 状态滞后导致漏提交。
+        void commit({ ...selection, reasoningEffort: id });
       }
       function close() {
         discardDrag();
@@ -322,7 +384,8 @@ window.__ModuleLoader__.load({
         return Math.round(Math.max(0, Math.min(1, (event.clientX - box.left - 15) / (box.width - 30))) * (efforts.length - 1));
       }
       function pointerDown(event) {
-        if (busyRef.current || disabled || efforts.length < 2) return;
+        // 运行中仍允许拖动预览，但松手时 chooseEffort 只排队，不写配置（避免 thinking 历史错配）
+        if (busyRef.current || (disabled && !running) || efforts.length < 2) return;
         event.currentTarget.focus({ preventScroll: true });
         event.currentTarget.setPointerCapture(event.pointerId);
         dragRef.current = true;
@@ -389,7 +452,7 @@ window.__ModuleLoader__.load({
         options[next].focus({ preventScroll: true });
         options[next].scrollIntoView({ block: 'nearest' });
       }
-      const classes = `dsh-codex-reasoning-effort-slider-popup${!open ? ' closed' : ''}${ultra ? ' ultra' : ''}${fast ? ' fast-mode' : ''}${message ? ' message' : ''}`;
+      const classes = `dsh-codex-reasoning-effort-slider-popup${!open ? ' closed' : ''}${ultra ? ' ultra' : ''}${fast ? ' fast-mode' : ''}${message ? ' message' : ''}${running ? ' locked' : ''}`;
       const status = error || state.error || '';
       const currentLabel = labels[displayed] || state.retainedEffort || '';
       const triggerLabel = labels[savedEffort] || state.retainedEffort || '';
@@ -427,6 +490,7 @@ window.__ModuleLoader__.load({
               onClick: () => { setFast(false); chooseEffort(model?.reasoning?.defaultEffort); }
             }, icon('reset'), h('span', { className: 'dsh-codex-reasoning-effort-slider-tooltip', role: 'tooltip' }, t('reset'))),
             efforts.length ? h('div', { className: `dsh-codex-reasoning-effort-slider-rail${dragging ? ' dragging' : ''}`, ref: railRef,
+              'data-effort': displayed || '', 'data-locked': locked ? '' : undefined,
               style: { '--dsh-codex-reasoning-effort-slider-pos': fraction }, role: 'slider', tabIndex: 0,
               'aria-label': t('effort'), 'aria-valuemin': 0, 'aria-valuemax': efforts.length - 1,
               'aria-valuenow': index, 'aria-valuetext': currentLabel, 'aria-disabled': busy || disabled,
@@ -463,6 +527,7 @@ window.__ModuleLoader__.load({
     return {
       inject: ['slots', 'modelDirectories', 'sessions', 'locale', 'remote', 'remote.session'],
       apply(ctx) {
+        ctx.effect(() => { sessionsRef.current = ctx.sessions; });
         ctx.effect(() => ctx.locale.register(NS, { zh, en }));
         ctx.slots.inject('conversation.input.model', () => ctx.slots.register({
           name: 'conversation.input.model',
@@ -471,7 +536,7 @@ window.__ModuleLoader__.load({
             const directory = ctx.modelDirectories.directoryFor(sessionId);
             const available = ctx.sessions.subagentAddress(sessionId) === undefined;
             return {
-              available, directory: directory.store,
+              available, directory: directory.store, sessionId,
               load: () => { if (available) directory.load().catch(() => {}); },
               select: selection => available ? directory.select(selection) : Promise.resolve(undefined)
             };
