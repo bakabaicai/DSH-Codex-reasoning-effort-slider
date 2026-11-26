@@ -629,6 +629,9 @@ window.__ModuleLoader__.load({
         };
         ctx.slots.inject('conversation.input.model', () => ctx.slots.register({
           name: 'conversation.input.model',
+          // 0.2.1 起官方模型席也注册在这个 single 槽位（priority 0），同优先级重复注册会抛错；
+          // 用 -1 确定性地遮蔽它。两版 slots 实现一致，0.2.0 上加这个字段同样安全。
+          priority: -1,
           locale: NS,
           inject(sessionId) {
             const directory = ctx.modelDirectories.directoryFor(sessionId);
