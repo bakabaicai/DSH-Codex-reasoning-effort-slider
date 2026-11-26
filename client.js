@@ -9,13 +9,13 @@ window.__ModuleLoader__.load({
     // apply(ctx) 的 ctx 不会进入组件作用域，宿主服务通过这个模块级引用桥接。
     const sessionsRef = { current: undefined };
     const zh = {
-      choose: '选择模型', effort: '思考等级', fast: '1.5倍速', usage: '用量更多', visual: '(无实际作用)',
+      choose: '选择模型', effort: '思考等级', team: '智能体团队', teamHint: '共享任务板协调多个智能体分工与进度', teamCost: '复杂任务更佳，token 开销更多', teamConfirm: '可能影响任务协作，\n增加后续用量开销，再次点击确认', teamTurningOn: '正在开启团队…', teamTurningOff: '正在关闭团队…', teamOn: '已开启智能体团队', teamOff: '已关闭智能体团队', teamFail: '切换团队模式失败，请稍后再试', teamBusy: '模型正在输出，稍后再试', teamUnavailable: '此会话不能切换团队模式',
       reset: '重置为默认', warning: '更快消耗使用额度', model: '切换模型', back: '返回',
       loading: '正在加载模型', empty: '没有可用模型', unsupported: '此模型未提供思考等级',
       retry: '重试', busy: '正在切换', failed: '切换失败', unavailable: '此会话不能切换模型'
     };
     const en = {
-      choose: 'Select model', effort: 'Reasoning effort', fast: '1.5x speed', usage: 'Uses more quota', visual: '(No actual effect)',
+      choose: 'Select model', effort: 'Reasoning effort', team: 'Agent teamwork', teamHint: 'Coordinates member tasks and progress on a shared board', teamCost: 'Better for complex tasks, with higher token use', teamConfirm: 'This may affect collaboration and increase later token use.\nClick again to confirm', teamTurningOn: 'Turning teamwork on…', teamTurningOff: 'Turning teamwork off…', teamOn: 'Agent teamwork on', teamOff: 'Agent teamwork off', teamFail: 'Could not switch teamwork, try again later', teamBusy: 'The model is still replying. Try again in a moment', teamUnavailable: 'Team mode is unavailable in this session',
       reset: 'Reset to default', warning: 'Consumes usage quota faster', model: 'Switch model', back: 'Back',
       loading: 'Loading models', empty: 'No available models', unsupported: 'No reasoning levels for this model',
       retry: 'Retry', busy: 'Switching', failed: 'Selection failed', unavailable: 'Model selection unavailable'
@@ -63,6 +63,12 @@ window.__ModuleLoader__.load({
       .dsh-codex-reasoning-effort-slider-popup.message .dsh-codex-reasoning-effort-slider-model-link,.dsh-codex-reasoning-effort-slider-popup.message .dsh-codex-reasoning-effort-slider-tool{opacity:0;pointer-events:none}
       .dsh-codex-reasoning-effort-slider-popup.message .dsh-codex-reasoning-effort-slider-warning{opacity:1}
       .dsh-codex-reasoning-effort-slider-popup.message .dsh-codex-reasoning-effort-slider-warning span{animation:dsh-codex-reasoning-effort-slider-sweep 1.1s linear .2s 1 both}
+      /* 团队开关的进度/结果复用警告行；确认态两行显示，避免长文案被 nowrap 截断。 */
+      .dsh-codex-reasoning-effort-slider-popup.compact .dsh-codex-reasoning-effort-slider-model-link,.dsh-codex-reasoning-effort-slider-popup.compact .dsh-codex-reasoning-effort-slider-reset{opacity:0;pointer-events:none}
+      .dsh-codex-reasoning-effort-slider-popup.compact .dsh-codex-reasoning-effort-slider-warning{opacity:1;top:26px;left:24px;right:24px;font-size:12px;line-height:16px}
+      .dsh-codex-reasoning-effort-slider-popup.compact .dsh-codex-reasoning-effort-slider-warning span{animation:none;display:block;width:100%;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;background:none;color:var(--dsw-alias-label-secondary);-webkit-text-fill-color:currentColor}
+      .dsh-codex-reasoning-effort-slider-popup.confirming .dsh-codex-reasoning-effort-slider-warning{top:22px;left:20px;right:20px}
+      .dsh-codex-reasoning-effort-slider-popup.confirming .dsh-codex-reasoning-effort-slider-warning span{white-space:pre-line;overflow:visible;text-overflow:clip;line-height:16px}
       @keyframes dsh-codex-reasoning-effort-slider-sweep{from{background-position:100% 0}to{background-position:0% 0}}
       .dsh-codex-reasoning-effort-slider-rail{position:absolute;left:12px;right:12px;top:65px;height:26px;border-radius:16px;background:var(--dsw-alias-border-l2);touch-action:none;cursor:grab}
       .dsh-codex-reasoning-effort-slider-rail.dragging{cursor:grabbing}
@@ -94,7 +100,7 @@ window.__ModuleLoader__.load({
       .dsh-codex-reasoning-effort-slider-tooltip span{color:var(--dsw-alias-label-secondary)}
       .dsh-codex-reasoning-effort-slider-fast .dsh-codex-reasoning-effort-slider-tooltip span{display:block}
       .dsh-codex-reasoning-effort-slider-fast .dsh-codex-reasoning-effort-slider-tooltip span:first-child{color:var(--dsw-alias-label-primary)}
-      .dsh-codex-reasoning-effort-slider-fast .dsh-codex-reasoning-effort-slider-tooltip{left:50%;transform:translateX(-50%)}.dsh-codex-reasoning-effort-slider-reset .dsh-codex-reasoning-effort-slider-tooltip{right:-15px}
+      .dsh-codex-reasoning-effort-slider-fast .dsh-codex-reasoning-effort-slider-tooltip{left:50%;transform:translateX(-50%);white-space:normal;max-width:240px;width:max-content;text-align:left}.dsh-codex-reasoning-effort-slider-reset .dsh-codex-reasoning-effort-slider-tooltip{right:-15px}
       .dsh-codex-reasoning-effort-slider-tool:hover .dsh-codex-reasoning-effort-slider-tooltip,.dsh-codex-reasoning-effort-slider-tool:focus-visible .dsh-codex-reasoning-effort-slider-tooltip{opacity:1}
       .dsh-codex-reasoning-effort-slider-models{height:100%;padding:5px;overflow:auto;overscroll-behavior:contain}
       .dsh-codex-reasoning-effort-slider-menu-title{display:flex;align-items:center;justify-content:space-between;height:24px;padding:0 8px;color:var(--dsw-alias-label-caption);font-size:12px}
@@ -123,7 +129,8 @@ window.__ModuleLoader__.load({
       return h('svg', { className: `dsh-codex-reasoning-effort-slider-icon${small ? ' dsh-codex-reasoning-effort-slider-small' : ''}`, viewBox: '0 0 24 24', 'aria-hidden': true },
         h('path', { d: paths[name] || paths.model }));
     }
-    function Selector({ directory, load, select, available, locked, sessionId, t }) {
+    function Selector({ directory, load, select, getTeamAvailable, setTeamMode, useProjection, useSessionStatus, available, locked, sessionId, t }) {
+      const teamAvailable = typeof getTeamAvailable === 'function' ? Boolean(getTeamAvailable()) : false;
       const state = useSyncExternalStore(fn => directory.subscribe(fn), () => directory.getSnapshot());
       const [open, setOpen] = useState(false);
       const [present, setPresent] = useState(false);
@@ -135,6 +142,20 @@ window.__ModuleLoader__.load({
       const [message, setMessage] = useState(false);
       const [error, setError] = useState('');
       const [busy, setBusy] = useState(false);
+      const [teamLocal, setTeamLocal] = useState(null);
+      const [teamPending, setTeamPending] = useState(false);
+      const [confirmOff, setConfirmOff] = useState(false);
+      const [notice, setNotice] = useState('');
+      const readProjection = useProjection;
+      const agentTeam = typeof readProjection === 'function' ? readProjection('agentTeam') : undefined;
+      const projectionOn = agentTeam && typeof agentTeam.enabled === 'boolean' ? agentTeam.enabled : undefined;
+      // 点击后先用本地值渲染，投影回来再交还投影，避免连点时状态来回跳。
+      const teamOn = teamLocal !== null ? teamLocal : projectionOn === true;
+      // 会话是否正在跑模型：sessionStatus 投影按 sessionId 汇总 running（与官方模型菜单同一来源）。
+      const sessionStatuses = typeof useSessionStatus === 'function' ? useSessionStatus(value => value) : undefined;
+      const sessionRunning = Boolean(sessionStatuses && sessionId !== undefined && sessionStatuses.get(sessionId) && sessionStatuses.get(sessionId).running);
+      useEffect(() => { if (projectionOn !== undefined) setTeamLocal(null); }, [projectionOn]);
+      useEffect(() => { setFast(teamOn); }, [teamOn]);
       const rootRef = useRef(null), popupRef = useRef(null), railRef = useRef(null);
       const canvasRef = useRef(null), burstRef = useRef(null), triggerRef = useRef(null);
       const previewRef = useRef(null), dragRef = useRef(false), dragPointerRef = useRef(null), mountedRef = useRef(true);
@@ -142,6 +163,8 @@ window.__ModuleLoader__.load({
       const lockedRef = useRef(false);
       const pendingRef = useRef(null);
       const timersRef = useRef([]);
+      const confirmTimerRef = useRef(0);
+      const noticeTimerRef = useRef(0);
       const latest = useRef({});
       const selection = state.pending || state.current;
       const group = state.groups.find(g => g.id === selection?.provider);
@@ -276,7 +299,70 @@ window.__ModuleLoader__.load({
       function close() {
         discardDrag();
         setOpen(false);
+        clearTimeout(noticeTimerRef.current);
+        clearTimeout(confirmTimerRef.current);
+        setConfirmOff(false);
+        setNotice('');
         triggerRef.current?.focus({ preventScroll: true });
+      }
+
+      function showNotice(text, duration) {
+        clearTimeout(noticeTimerRef.current);
+        setNotice(text);
+        if (duration) {
+          noticeTimerRef.current = setTimeout(() => {
+            if (mountedRef.current) setNotice('');
+          }, duration);
+          timersRef.current.push(noticeTimerRef.current);
+        }
+      }
+      async function toggleTeam() {
+        if (teamPending || busyRef.current) return;
+        clearTimeout(noticeTimerRef.current);
+        clearTimeout(confirmTimerRef.current);
+        // 模型正在输出：不尝试切换，直接给中文提示。
+        if (sessionRunning) { showNotice(t('teamBusy'), 1500); return; }
+        // 关闭团队：第一次点击只进入确认态，4 秒内再点一次才真正关闭。
+        if (teamOn && !confirmOff) {
+          setConfirmOff(true);
+          showNotice(t('teamConfirm'));
+          confirmTimerRef.current = setTimeout(() => {
+            if (!mountedRef.current) return;
+            setConfirmOff(false);
+            setNotice('');
+          }, 4000);
+          timersRef.current.push(confirmTimerRef.current);
+          return;
+        }
+        const previous = teamOn;
+        const next = !previous;
+        setTeamPending(true);
+        // 乐观切换：投影回来之前就用本地值渲染，连点也不会来回跳。
+        setTeamLocal(next);
+        // 本地切换通常 <100ms：慢的时候才显示「正在…」，避免三屏文字连闪。
+        const slowTimer = setTimeout(() => {
+          if (mountedRef.current) setNotice(next ? t('teamTurningOn') : t('teamTurningOff'));
+        }, 400);
+        timersRef.current.push(slowTimer);
+        try {
+          const failure = await (typeof setTeamMode === 'function'
+            ? setTeamMode(next)
+            : Promise.reject(new Error(t('teamUnavailable'))));
+          if (failure) throw new Error(String(failure));
+          showNotice(next ? t('teamOn') : t('teamOff'), 1500);
+        } catch (cause) {
+          if (typeof console !== 'undefined') console.warn('[effort-slider] team toggle failed', cause);
+          const message = String((cause && cause.message) || cause || '');
+          setTeamLocal(previous);
+          showNotice(/busy|running|generat|stream|in.?progress|locked|replying|turn/i.test(message) ? t('teamBusy') : t('teamFail'), 3000);
+        } finally {
+          clearTimeout(slowTimer);
+          if (mountedRef.current) {
+            setTeamPending(false);
+            // 等结果出来再退出确认态，避免两行文案先被压回单行再跳成结果。
+            setConfirmOff(false);
+          }
+        }
       }
       useLayoutEffect(() => {
         if (!open) return;
@@ -452,7 +538,7 @@ window.__ModuleLoader__.load({
         options[next].focus({ preventScroll: true });
         options[next].scrollIntoView({ block: 'nearest' });
       }
-      const classes = `dsh-codex-reasoning-effort-slider-popup${!open ? ' closed' : ''}${ultra ? ' ultra' : ''}${fast ? ' fast-mode' : ''}${message ? ' message' : ''}${running ? ' locked' : ''}`;
+      const classes = `dsh-codex-reasoning-effort-slider-popup${!open ? ' closed' : ''}${ultra ? ' ultra' : ''}${fast ? ' fast-mode' : ''}${message ? ' message' : ''}${running ? ' locked' : ''}${notice ? ' compact' : ''}${confirmOff ? ' confirming' : ''}`;
       const status = error || state.error || '';
       const currentLabel = labels[displayed] || state.retainedEffort || '';
       const triggerLabel = labels[savedEffort] || state.retainedEffort || '';
@@ -477,17 +563,17 @@ window.__ModuleLoader__.load({
         'aria-hidden': !open, inert: !open ? '' : undefined, style: { '--dsh-codex-reasoning-effort-slider-height': `${pane === 'models' ? menuHeight : 104}px` } },
           modelsView,
           h('div', { className: `dsh-codex-reasoning-effort-slider-pane dsh-codex-reasoning-effort-slider-main${pane !== 'effort' ? ' hidden' : ''}`, inert: pane !== 'effort' ? '' : undefined },
-            h('button', { className: `dsh-codex-reasoning-effort-slider-tool dsh-codex-reasoning-effort-slider-fast${fast ? ' active' : ''}`, 'aria-label': t('fast'), 'aria-pressed': fast, onClick: () => setFast(!fast) },
+            teamAvailable && available ? h('button', { className: `dsh-codex-reasoning-effort-slider-tool dsh-codex-reasoning-effort-slider-fast${teamOn ? ' active' : ''}`, 'aria-label': t('team'), 'aria-pressed': teamOn, 'aria-busy': teamPending, title: t('team'), disabled: teamPending || Boolean(locked), onClick: toggleTeam },
               h('svg', { className: 'dsh-codex-reasoning-effort-slider-bolt', viewBox: '0 0 24 24', 'aria-hidden': true },
                 h('path', { d: 'M14.4 2Q16 .2 15.8 2.5L15.1 8.5H20.5Q22 8.5 21 9.8L10.7 21.7Q9 23.4 9.2 21.2L10 14.2H4.2Q2.6 14.2 3.6 12.9L14.4 2Z' })),
               h('span', { className: 'dsh-codex-reasoning-effort-slider-tooltip', role: 'tooltip' },
-                h('span', null, t('fast')), h('span', null, t('usage')), h('span', null, t('visual')))),
+                h('span', null, t('team')), h('span', null, t('teamHint')), h('span', null, t('teamCost')))) : null,
             h('button', { className: 'dsh-codex-reasoning-effort-slider-model-link', onClick: () => setPane('models'), 'aria-label': t('model'), title: modelName },
               h('span', { className: 'dsh-codex-reasoning-effort-slider-heading' }, currentLabel || t('choose'), icon('chevron', true)),
               h('span', { className: 'dsh-codex-reasoning-effort-slider-model' }, modelName)),
-            h('div', { className: 'dsh-codex-reasoning-effort-slider-warning' }, h('span', null, t('warning'))),
+            h('div', { className: 'dsh-codex-reasoning-effort-slider-warning' }, h('span', { title: notice || undefined }, notice || t('warning'))),
             h('button', { className: 'dsh-codex-reasoning-effort-slider-tool dsh-codex-reasoning-effort-slider-reset', disabled: busy || !model?.reasoning, 'aria-label': t('reset'),
-              onClick: () => { setFast(false); chooseEffort(model?.reasoning?.defaultEffort); }
+              onClick: () => { clearTimeout(noticeTimerRef.current); setConfirmOff(false); setNotice(''); chooseEffort(model?.reasoning?.defaultEffort); }
             }, icon('reset'), h('span', { className: 'dsh-codex-reasoning-effort-slider-tooltip', role: 'tooltip' }, t('reset'))),
             efforts.length ? h('div', { className: `dsh-codex-reasoning-effort-slider-rail${dragging ? ' dragging' : ''}`, ref: railRef,
               'data-effort': displayed || '', 'data-locked': locked ? '' : undefined,
@@ -529,6 +615,18 @@ window.__ModuleLoader__.load({
       apply(ctx) {
         ctx.effect(() => { sessionsRef.current = ctx.sessions; });
         ctx.effect(() => ctx.locale.register(NS, { zh, en }));
+        // remote 命名空间是独立的 cordis service（key 为 remote.agentTeams）。
+        // 未声明 inject 时直接读 ctx.remote.agentTeams 会抛 "cannot get property ... without inject"，
+        // 所以用 ctx.get 惰性取；0.2.0/0.2.1 没有该 service 时返回 undefined，按钮据此隐藏。
+        const teamService = () => {
+          try {
+            if (typeof ctx.get === 'function') {
+              const value = ctx.get('remote.agentTeams');
+              if (value !== undefined) return value;
+            }
+          } catch {}
+          return undefined;
+        };
         ctx.slots.inject('conversation.input.model', () => ctx.slots.register({
           name: 'conversation.input.model',
           locale: NS,
@@ -538,7 +636,15 @@ window.__ModuleLoader__.load({
             return {
               available, directory: directory.store, sessionId,
               load: () => { if (available) directory.load().catch(() => {}); },
-              select: selection => available ? directory.select(selection) : Promise.resolve(undefined)
+              select: selection => available ? directory.select(selection) : Promise.resolve(undefined),
+              getTeamAvailable: () => Boolean(teamService()),
+              setTeamMode: enabled => {
+                const teams = teamService();
+                if (!available || !teams) return Promise.reject(new Error('unavailable'));
+                return teams.setEnabled(sessionId, enabled).then(response => (response && response.ok)
+                  ? null
+                  : ((response && response.error && response.error.message) || 'unavailable'));
+              }
             };
           }
         }, Selector));
